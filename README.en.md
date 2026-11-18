@@ -84,3 +84,8 @@ T3 shows the thread's own messages, receipts and its relay of the partner's repl
 |---|---|
 | `t3-prompt-patch.py` | Patch script; the patches are in `PATCHES` at the top |
 | `docs/prompts-original-vs-patched.zh.md` | Original vs patched T3 prompts, with a Chinese paraphrase |
+| `LICENSE` | MIT license |
+
+## License
+
+[MIT](LICENSE). It covers only this repository's own script and documentation; the T3 Code prompt text quoted in them belongs to the T3 Code authors.

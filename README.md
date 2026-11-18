@@ -84,3 +84,8 @@ T3 里能看到的是本线程发出的消息、回执和对方回信后的转�
 |---|---|
 | `t3-prompt-patch.py` | 补丁脚本，补丁内容在文件开头的 `PATCHES` 里 |
 | `docs/prompts-original-vs-patched.zh.md` | T3 提示词原版与现版对照，附中文转述 |
+| `LICENSE` | MIT 许可证 |
+
+## 许可证
+
+[MIT](LICENSE)。MIT 只适用于本仓库自己写的脚本和文档；文档和脚本里引用的 T3 Code 提示词原文，版权归 T3 Code 的作者。
