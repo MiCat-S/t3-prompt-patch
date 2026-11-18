@@ -10,7 +10,7 @@
 
 这个补丁要配合 [nxbridge](https://github.com/MiCat-S/nxbridge) 使用：先照 nxbridge 的说明装好它，再打这个补丁。T3 里哪个方向能用、界面上能看到什么、还要注意什么，见 nxbridge README 的“[和 T3 Code 一起用](https://github.com/MiCat-S/nxbridge#%E5%92%8C-t3-code-%E4%B8%80%E8%B5%B7%E7%94%A8)”。
 
-没装 nxbridge 也可以打：补丁 1、2 照常生效，补丁 3~6 不起作用。
+没装 nxbridge 也可以打：补丁 1、2 照常生效；补丁 3~6 是给 nxbridge 用的，见下文“改了什么”。
 
 ## 改了什么
 
@@ -25,9 +25,15 @@
 | 5 | `nxbridge-background` | 后台代理一律走 `delegate_task` | 自己这一家的后台代理走 `delegate_task`；给对方的后台工作交给 nxbridge 搭档 |
 | 6 | `nxbridge-review` | 每次审查或复查都新开一个 `delegate_task` | 要对方审查或复查的，发给 nxbridge 搭档；其余照旧 |
 
-完整的原版、现版提示词和中文转述见 [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md)。
+和 T3 原版逐词比对，按类型分：
 
-补丁 3~6 写的是“装了 nxbridge 时”。没装 nxbridge 的线程，以及 agy、Pi 等其他提供方，行为和原来一样。
+- **删掉 2 条规则**：有趋势或对比的数据要主动用图表回答（补丁 2）；没人要求时不准用 `preview_*` 验证或展示自己改动的禁令（补丁 1，换成了“为了验证结果，可以检查自己改的界面”；没人要求时主动展示给用户看，现版没有写）。
+- **缩小了 3 处适用范围**，原文保留：`delegate_task` 用于“另一家的模型”改成“其他家的模型，不含你的 Claude/Codex 对方”（补丁 4）；后台代理一律走 `delegate_task` 改成只限自己这一家（补丁 5）；每次审查都新开 `delegate_task` 改成对方做的审查除外（补丁 6）。
+- **新加**：nxbridge 搭档规则和发消息的方式（补丁 4），对方的后台工作和审查交给搭档（补丁 5、6），“搭档不算退回”的括注（补丁 3）。
+
+除此之外，T3 的提示词一字未动。逐词对照、完整的原版和现版原文及中文转述见 [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md)。
+
+补丁 3~6 是为装了 nxbridge 的 Claude 和 Codex 写的：只有第 4 条开头写明“装了 nxbridge 时”，第 3、5、6 条靠第 4 条里“Claude/Codex 对方”“nxbridge 搭档”的定义限定范围。agy、Pi 等其他提供方没有 Claude/Codex 对方，这几句对它们不适用。没装 nxbridge 的 Claude/Codex 线程能否照旧用 `delegate_task` 找对方，没有实测。
 
 ## 使用
 
@@ -53,7 +59,7 @@ python3 t3-prompt-patch.py status --asar /tmp/app.asar
 
 ## 工作原理
 
-1. 在 `app.asar` 里找到包含 `Ordinary coding tasks need no T3 tools.` 的服务端代码文件（当前是 `apps/server/dist/runtimeLayer-C5lIUtmc.mjs`），必须正好找到一个。
+1. 在 `app.asar` 里找到包含 `Ordinary coding tasks need no T3 tools.` 的服务端代码文件（文件名随版本变化，0.1.11-nightly.20261118.4864 上是 `apps/server/dist/runtimeLayer-DiBNK4ph.mjs`），必须正好找到一个。
 2. 逐条精确替换。每条补丁的原文必须在文件里正好出现一次；已经打过的跳过；任何一条既找不到原文、也找不到替换后的文字，就整体放弃，不写入。
 3. 重新计算 asar 头里这个文件的大小和完整性哈希（SHA-256，4 MB 分块），其他文件原样保留。
 4. 先写到临时文件，校验所有文件的哈希都对，再原子替换原包。
@@ -77,6 +83,8 @@ python3 t3-prompt-patch.py status --asar /tmp/app.asar
 - **Codex 线程找 Claude**：Codex 也走了 nxbridge 的 `send_message`。但 nxbridge 要启动后台 Claude，需要先在 Claude 里做一次免审批确认，并信任工作目录（T3 无项目线程的目录在 `~/.t3/scratch/` 下）。这个方向没有测完。另外，T3 给每个 Codex 会话单独起私有的 `codex app-server`，nxbridge 无法在 Codex 线程空闲时叫醒它。
 
 T3 里能看到的是本线程发出的消息、回执和对方回信后的转述；后台搭档自己执行的命令和改动不在 T3 里显示。
+
+T3 Code 0.1.11-nightly.20261118.4864：提示词原文和 4825 逐字相同；在 `app.asar` 副本上 `apply`、`status` 都通过，打补丁前后只有这 6 处不同。上面的行为测试没有在这个版本上重做。
 
 ## 注意
 

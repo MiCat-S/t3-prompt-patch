@@ -10,7 +10,7 @@ Only prompt text changes; no other T3 code is touched. The original package is b
 
 This patch is meant to be used with [nxbridge](https://github.com/MiCat-S/nxbridge): install nxbridge first by following its instructions, then apply this patch. For which directions work in T3, what T3 shows and what to watch out for, see [Using it with T3 Code](https://github.com/MiCat-S/nxbridge/blob/main/README.en.md#using-it-with-t3-code) in the nxbridge README.
 
-You can apply it without nxbridge too: patches 1 and 2 take effect, and patches 3–6 do nothing.
+You can apply it without nxbridge too: patches 1 and 2 take effect; patches 3–6 are for nxbridge, see "What changes" below.
 
 ## What changes
 
@@ -25,9 +25,15 @@ Six patches, all in T3's orchestration prompt:
 | 5 | `nxbridge-background` | Background agent: always `delegate_task` | Background agent on your own provider: `delegate_task`; background work for the counterpart goes to the nxbridge partner |
 | 6 | `nxbridge-review` | Every review or re-check is a new `delegate_task` | Reviews by the counterpart go to the nxbridge partner; all others unchanged |
 
-The full original and patched prompts, with a Chinese paraphrase, are in [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md).
+Compared word by word with T3's original, by kind:
 
-Patches 3–6 apply only "with nxbridge loaded". Threads without nxbridge, and other providers such as agy or Pi, behave as before.
+- **2 rules removed**: answer data with a trend or comparison with a chart (patch 2); the ban on using `preview_*` unasked to verify or show your own edit (patch 1, replaced by "may check your own UI edits when that verifies the result"; showing your edit unasked is no longer addressed).
+- **3 scopes narrowed**, original wording kept: `delegate_task` for "another provider's model" becomes "models of other providers, not your Claude/Codex counterpart" (patch 4); "background agent: always `delegate_task`" becomes only on your own provider (patch 5); "every review or re-check is a new `delegate_task`" now excludes reviews by the counterpart (patch 6).
+- **Added**: the nxbridge partner rules and how to message the partner (patch 4), background work and reviews for the counterpart go to the partner (patches 5, 6), and the "partner is no fallback" note (patch 3).
+
+Nothing else in T3's prompts changes. The word-level comparison and the full original and patched prompts, with a Chinese paraphrase, are in [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md).
+
+Patches 3–6 are written for Claude and Codex with nxbridge: only patch 4 opens with "with nxbridge loaded"; patches 3, 5 and 6 rely on patch 4's "Claude/Codex counterpart" and "nxbridge partner". Other providers such as agy or Pi have no Claude/Codex counterpart, so these lines do not apply to them. Whether a Claude or Codex thread without nxbridge still uses `delegate_task` for its counterpart is untested.
 
 ## Usage
 
@@ -53,7 +59,7 @@ python3 t3-prompt-patch.py status --asar /tmp/app.asar
 
 ## How it works
 
-1. Finds the one server bundle in `app.asar` containing `Ordinary coding tasks need no T3 tools.` (currently `apps/server/dist/runtimeLayer-C5lIUtmc.mjs`).
+1. Finds the one server bundle in `app.asar` containing `Ordinary coding tasks need no T3 tools.` (the file name changes between versions; on 0.1.11-nightly.20261118.4864 it is `apps/server/dist/runtimeLayer-DiBNK4ph.mjs`).
 2. Applies each patch as an exact replacement. Each original must occur exactly once; patches already applied are skipped; if any patch matches neither its original nor its replacement, nothing is written.
 3. Recomputes that file's size and integrity hash in the asar header (SHA-256, 4 MB blocks); all other files are copied unchanged.
 4. Writes to a temp file, verifies every file hash, then atomically replaces the package.
@@ -77,6 +83,8 @@ On T3 Code 0.1.11-nightly.20261117.4825 with nxbridge 0.1.1-3e3e754f55fa:
 - **Codex thread asking Claude**: Codex also used nxbridge's `send_message`. Starting a background Claude needs a one-time bypass consent in Claude and a trusted working directory (T3's project-less threads live under `~/.t3/scratch/`), so this direction was not fully tested. T3 runs a private `codex app-server` per Codex session, so nxbridge cannot wake an idle Codex thread.
 
 T3 shows the thread's own messages, receipts and its relay of the partner's reply; the background partner's own commands and edits are not shown in T3.
+
+T3 Code 0.1.11-nightly.20261118.4864: the prompt text is identical to 4825; `apply` and `status` pass on a copy of `app.asar`, and only these six spots differ after patching. The behavior tests above were not repeated on this version.
 
 ## Notes
 
