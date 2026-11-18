@@ -6,6 +6,12 @@
 
 只改提示词文本，不改 T3 的其他代码。改之前会备份原包，随时可以恢复。
 
+## 和 nxbridge 一起用
+
+这个补丁要配合 [nxbridge](https://github.com/MiCat-S/nxbridge) 使用：先照 nxbridge 的说明装好它，再打这个补丁。T3 里哪个方向能用、界面上能看到什么、还要注意什么，见 nxbridge README 的“[和 T3 Code 一起用](https://github.com/MiCat-S/nxbridge#%E5%92%8C-t3-code-%E4%B8%80%E8%B5%B7%E7%94%A8)”。
+
+没装 nxbridge 也可以打：补丁 1、2 照常生效，补丁 3~6 不起作用。
+
 ## 改了什么
 
 一共 6 条补丁，都在 T3 的协作提示词里：

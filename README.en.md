@@ -6,6 +6,12 @@ Patches the built-in prompts that T3 Code (Nightly) gives Claude and Codex. Afte
 
 Only prompt text changes; no other T3 code is touched. The original package is backed up first and can be restored at any time.
 
+## Using it with nxbridge
+
+This patch is meant to be used with [nxbridge](https://github.com/MiCat-S/nxbridge): install nxbridge first by following its instructions, then apply this patch. For which directions work in T3, what T3 shows and what to watch out for, see [Using it with T3 Code](https://github.com/MiCat-S/nxbridge/blob/main/README.en.md#using-it-with-t3-code) in the nxbridge README.
+
+You can apply it without nxbridge too: patches 1 and 2 take effect, and patches 3–6 do nothing.
+
 ## What changes
 
 Six patches, all in T3's orchestration prompt:
