@@ -1,0 +1,4 @@
+backup/
+*.asar
+__pycache__/
+.DS_Store
