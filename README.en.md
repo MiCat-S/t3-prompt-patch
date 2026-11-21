@@ -23,13 +23,13 @@ Six patches, all in T3's orchestration prompt:
 | 3 | `nxbridge-no-cli-fallback` | Never switch unasked or fall back to native tools, Workflow or CLIs | Same, plus: the nxbridge partner is no fallback; it is the channel for Claude/Codex work |
 | 4 | `nxbridge-peer-partner` | Use `delegate_task` for another provider's model | With nxbridge loaded, the Claude/Codex counterpart is a peer partner, never a `delegate_task` child; follow nxbridge's partner rules (owner by strength, splits, hand-offs, reviews, its own model and effort); `delegate_task` only for other providers or when the user names it |
 | 5 | `nxbridge-background` | Background agent: always `delegate_task` | Background agent on your own provider: `delegate_task`; background work for the counterpart goes to the nxbridge partner |
-| 6 | `nxbridge-review` | Every review or re-check is a new `delegate_task` | Reviews by the counterpart go to the nxbridge partner; all others unchanged |
+| 6 | `nxbridge-review` | Every review or re-check is a new `delegate_task` | Use nxbridge for an assigned partner review. If unavailable, continue independent work and start a substitute review only on user request. Prefer a fresh native subagent for ordinary same-provider reviews. Follow the existing routing in other cases. |
 
 Compared word by word with T3's original, by kind:
 
 - **2 rules removed**: answer data with a trend or comparison with a chart (patch 2); the ban on using `preview_*` unasked to verify or show your own edit (patch 1, replaced by "may check your own UI edits when that verifies the result"; showing your edit unasked is no longer addressed).
-- **3 scopes narrowed**, original wording kept: `delegate_task` for "another provider's model" becomes "models of other providers, not your Claude/Codex counterpart" (patch 4); "background agent: always `delegate_task`" becomes only on your own provider (patch 5); "every review or re-check is a new `delegate_task`" now excludes reviews by the counterpart (patch 6).
-- **Added**: the nxbridge partner rules and how to message the partner (patch 4), background work and reviews for the counterpart go to the partner (patches 5, 6), and the "partner is no fallback" note (patch 3).
+- **3 scopes narrowed**: `delegate_task` for "another provider's model" becomes "models of other providers, not your Claude/Codex counterpart" (patch 4); "background agent: always `delegate_task`" becomes only on your own provider (patch 5); "every review or re-check is a new `delegate_task`" now applies only when existing routing calls for T3 delegation (patch 6).
+- **Added**: the nxbridge partner rules and how to message the partner (patch 4), background work and reviews for the counterpart go to the partner (patches 5, 6), the "partner is no fallback" note (patch 3), and native same-provider reviews with user control over partner substitution (patch 6).
 
 Nothing else in T3's prompts changes. The word-level comparison and the full original and patched prompts, with a Chinese paraphrase, are in [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md).
 
@@ -40,14 +40,14 @@ Patches 3–6 are written for Claude and Codex with nxbridge: only patch 4 opens
 Needs Python 3, standard library only (`/usr/bin/python3` on macOS works).
 
 ```sh
-python3 t3-prompt-patch.py status    # per-patch state: patched / original / NOT FOUND
+python3 t3-prompt-patch.py status    # per-patch state: patched / previous / original / NOT FOUND
 python3 t3-prompt-patch.py apply     # back up the original and apply (idempotent)
 python3 t3-prompt-patch.py restore   # put the backed-up original back
 ```
 
 After `apply` or `restore`, **quit T3 Code completely and reopen it**. Quitting stops any session running in T3.
 
-A T3 Code update overwrites the patch; run `apply` again. If the new version changed the prompt text, the script lists the patches it cannot find and writes nothing; update `PATCHES` to the new text.
+An older `nxbridge-review` patch shows as `previous`. Run `apply` to upgrade it and keep the original backup. Run `apply` again after a T3 Code update. If the new version changed the prompt text, the script lists the patches it cannot find and writes nothing; update `PATCHES` to the new text.
 
 To try it on a copy without touching the installed app:
 
@@ -60,7 +60,7 @@ python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ## How it works
 
 1. Finds the one server bundle in `app.asar` containing `Ordinary coding tasks need no T3 tools.` (the file name changes between versions; on 0.1.11-nightly.20261118.4864 it is `apps/server/dist/runtimeLayer-DiBNK4ph.mjs`).
-2. Applies each patch as an exact replacement. Each original must occur exactly once; patches already applied are skipped; if any patch matches neither its original nor its replacement, nothing is written.
+2. Applies each patch as an exact replacement. Each patch must have a single match across its original, current and known previous forms. Original and previous forms are updated. Current forms are skipped. An ambiguous or absent match stops the update.
 3. Recomputes that file's size and integrity hash in the asar header (SHA-256, 4 MB blocks); all other files are copied unchanged.
 4. Writes to a temp file, verifies every file hash, then atomically replaces the package.
 5. On the first `apply` to the installed app, backs up the original to `~/.t3-prompt-patch/backup/<T3 version>/app.asar`, which `restore` uses.

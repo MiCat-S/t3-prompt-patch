@@ -44,7 +44,8 @@ PATCHES = [
     {
         "name": "nxbridge-review",
         "find": "- Every new delegate review or re-check is a new \\`delegate_task\\`",
-        "replace": "- A review or re-check by your Claude/Codex counterpart: message the nxbridge partner. Every other new delegate review or re-check is a new \\`delegate_task\\`",
+        "previous": "- A review or re-check by your Claude/Codex counterpart: message the nxbridge partner. Every other new delegate review or re-check is a new \\`delegate_task\\`",
+        "replace": "- For a review or re-check assigned to your nxbridge partner, message that partner. If it is unavailable, report the blocker and continue independent work. Only start a substitute review if the user asks. For other reviews, follow the subagent routing above. Prefer a fresh native subagent for an ordinary same-provider review. When that routing requires T3 delegation, start a new \\`delegate_task\\`",
     },
 ]
 MARKER = "Ordinary coding tasks need no T3 tools."
@@ -108,14 +109,24 @@ def find_target(data, base, header):
     return hits[0]
 
 
+def match_patch(text, patch):
+    forms = [("original", patch["find"]), ("patched", patch["replace"])]
+    if "previous" in patch:
+        forms.append(("previous", patch["previous"]))
+    matches = [(state, value) for state, value in forms if value in text]
+    if len(matches) == 1 and text.count(matches[0][1]) == 1:
+        return matches[0]
+    return "NOT FOUND", None
+
+
 def patch_text(text):
     done, already, missing = [], [], []
     for p in PATCHES:
-        n_find, n_rep = text.count(p["find"]), text.count(p["replace"])
-        if n_find == 1:
-            text = text.replace(p["find"], p["replace"])
+        state, value = match_patch(text, p)
+        if state in ("original", "previous"):
+            text = text.replace(value, p["replace"])
             done.append(p["name"])
-        elif n_find == 0 and n_rep == 1:
+        elif state == "patched":
             already.append(p["name"])
         else:
             missing.append(p["name"])
@@ -137,7 +148,7 @@ def cmd_status(asar):
     text = content(data, base, entry).decode("utf-8")
     print(f"T3 Code {version()}  bundle: {path}")
     for p in PATCHES:
-        state = "patched" if p["replace"] in text else ("original" if p["find"] in text else "NOT FOUND")
+        state, _ = match_patch(text, p)
         print(f"  {p['name']}: {state}")
     print(f"  backup: {backup_path() if os.path.exists(backup_path()) else 'none'}")
 

@@ -23,13 +23,13 @@
 | 3 | `nxbridge-no-cli-fallback` | 不准擅自换，不准退回原生工具、Workflow 或命令行 | 同原来，并写明 nxbridge 搭档不算退回，它就是 Claude/Codex 协作的通道 |
 | 4 | `nxbridge-peer-partner` | 要用另一家的模型，走 `delegate_task` | 装了 nxbridge 时，Claude/Codex 对方是平级搭档、不是 `delegate_task` 子任务，按 nxbridge 的规则协作（按擅长分工、交接、复查，对方自己定模型和强度）；`delegate_task` 只用于其他家，或你点名时 |
 | 5 | `nxbridge-background` | 后台代理一律走 `delegate_task` | 自己这一家的后台代理走 `delegate_task`；给对方的后台工作交给 nxbridge 搭档 |
-| 6 | `nxbridge-review` | 每次审查或复查都新开一个 `delegate_task` | 要对方审查或复查的，发给 nxbridge 搭档；其余照旧 |
+| 6 | `nxbridge-review` | 每次审查或复查都新开一个 `delegate_task` | 指定搭档的复核走 nxbridge。搭档不可用时报告阻塞，继续独立工作，用户要求时才启动替代复核。普通同提供方复核优先新开原生子代理，其他场景按已有委派规则选工具 |
 
 和 T3 原版逐词比对，按类型分：
 
 - **删掉 2 条规则**：有趋势或对比的数据要主动用图表回答（补丁 2）；没人要求时不准用 `preview_*` 验证或展示自己改动的禁令（补丁 1，换成了“为了验证结果，可以检查自己改的界面”；没人要求时主动展示给用户看，现版没有写）。
-- **缩小了 3 处适用范围**，原文保留：`delegate_task` 用于“另一家的模型”改成“其他家的模型，不含你的 Claude/Codex 对方”（补丁 4）；后台代理一律走 `delegate_task` 改成只限自己这一家（补丁 5）；每次审查都新开 `delegate_task` 改成对方做的审查除外（补丁 6）。
-- **新加**：nxbridge 搭档规则和发消息的方式（补丁 4），对方的后台工作和审查交给搭档（补丁 5、6），“搭档不算退回”的括注（补丁 3）。
+- **缩小了 3 处适用范围**：`delegate_task` 用于“另一家的模型”改成“其他家的模型，不含你的 Claude/Codex 对方”（补丁 4）；后台代理一律走 `delegate_task` 改成只限自己这一家（补丁 5）；复核只在已有委派规则要求 T3 委派时新开 `delegate_task`（补丁 6）。
+- **新加**：nxbridge 搭档规则和发消息的方式（补丁 4），对方的后台工作和审查交给搭档（补丁 5、6），“搭档不算退回”的括注（补丁 3），普通同提供方复核优先使用原生子代理，搭档不可用时由用户决定是否替换（补丁 6）。
 
 除此之外，T3 的提示词一字未动。逐词对照、完整的原版和现版原文及中文转述见 [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md)。
 
@@ -40,14 +40,14 @@
 需要 Python 3，只用标准库，不用装依赖（macOS 上的 `/usr/bin/python3` 即可）。
 
 ```sh
-python3 t3-prompt-patch.py status    # 查看每条补丁的状态：patched / original / NOT FOUND
+python3 t3-prompt-patch.py status    # 查看每条补丁的状态：patched / previous / original / NOT FOUND
 python3 t3-prompt-patch.py apply     # 备份原包并打上补丁（可重复运行）
 python3 t3-prompt-patch.py restore   # 恢复备份的原包
 ```
 
 `apply` 和 `restore` 之后，要**完全退出 T3 Code 再重新打开**才生效。退出会中断 T3 里正在运行的会话。
 
-T3 Code 更新后补丁会被覆盖，重新运行一次 `apply` 即可。如果新版本改了相关的提示词原文，脚本会列出找不到的补丁，并且不写入任何东西，这时需要按新原文更新脚本里的 `PATCHES`。
+旧版 `nxbridge-review` 会显示 `previous`。运行 `apply` 即可升级，原包备份仍可用于恢复。T3 Code 更新后也可重新运行 `apply`。如果新版本改了相关的提示词原文，脚本会列出找不到的补丁，并且不写入任何东西，这时需要按新原文更新脚本里的 `PATCHES`。
 
 只想在副本上试，不动已安装的 T3：
 
@@ -60,7 +60,7 @@ python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ## 工作原理
 
 1. 在 `app.asar` 里找到包含 `Ordinary coding tasks need no T3 tools.` 的服务端代码文件（文件名随版本变化，0.1.11-nightly.20261118.4864 上是 `apps/server/dist/runtimeLayer-DiBNK4ph.mjs`），必须正好找到一个。
-2. 逐条精确替换。每条补丁的原文必须在文件里正好出现一次；已经打过的跳过；任何一条既找不到原文、也找不到替换后的文字，就整体放弃，不写入。
+2. 逐条精确替换。每条补丁必须唯一命中原文、当前补丁文本或已知的旧版文本。原文和旧版文本升级到当前版本，当前版本跳过。缺少匹配或匹配不唯一时停止写入。
 3. 重新计算 asar 头里这个文件的大小和完整性哈希（SHA-256，4 MB 分块），其他文件原样保留。
 4. 先写到临时文件，校验所有文件的哈希都对，再原子替换原包。
 5. 第一次 `apply` 已安装的 T3 时，把原包备份到 `~/.t3-prompt-patch/backup/<T3 版本>/app.asar`。`restore` 用的就是这份备份。

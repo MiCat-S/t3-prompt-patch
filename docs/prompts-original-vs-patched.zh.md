@@ -4,7 +4,7 @@
 - 原版：取自未打补丁的 `/Applications/T3 Code (Nightly).app/Contents/Resources/app.asar`
 - 现版：在这个 `app.asar` 的副本上运行 `apply` 后取出
 - 提示词所在文件：`app.asar` → `apps/server/dist/runtimeLayer-DiBNK4ph.mjs`（文件名随版本变化，4825 上是 `runtimeLayer-C5lIUtmc.mjs`）
-- 整理日期：2026-11-18
+- 本文以 2026-11-18 的原版提示词为基准。第 6 条现版规则已同步到 0.1.12-nightly.20261120.4994 对应的补丁文本。
 
 整个服务端代码文件里，打补丁前后只有 5 行不同：第 1 段的第 1~3 条、第 3 段的第 1~2 条。其余提示词一字未动。
 
@@ -47,13 +47,13 @@
 | 2 `charts-on-request` | `Answer data with a trend or comparison with a chart` | 有趋势或对比的数据，主动用图表回答 | 整条删掉，不再主动画图；只在用户要求时展示图表或可视化 |
 | 1 `allow-preview-self-check` | ``Never use `preview_*` unasked to verify or show your own edit.`` | 没人要求时，不准用 `preview_*` 验证或展示自己的改动 | 禁令删掉，换成“为了验证结果，可以用 `preview_*` 检查自己改的界面”。原版同时禁止“验证”和“展示”，现版只放开了验证，没人要求时主动展示给用户看，现版没有写 |
 
-### 改了范围的（3 处，原文保留，只是缩小了适用范围）
+### 改了范围的（3 处，按适用场景缩小范围）
 
 | 补丁 | 原版 | 现版 | 变化 |
 |---|---|---|---|
 | 4 `nxbridge-peer-partner` | ``Use `delegate_task` for another provider's model`` | ``Use `delegate_task` for models of other providers (not your counterpart)`` | 你的 Claude/Codex 对方不再走 `delegate_task` |
 | 5 `nxbridge-background` | ``Background agent: `delegate_task`, never a background `Agent`.`` | ``Background agent on your provider: `delegate_task`, …`` | 后台代理一律 `delegate_task` → 只限自己这一家 |
-| 6 `nxbridge-review` | ``Every new delegate review or re-check is a new `delegate_task` `` | ``Every other new delegate review or re-check is a new `delegate_task` `` | 每次审查都开 `delegate_task` → 对方做的审查除外 |
+| 6 `nxbridge-review` | ``Every new delegate review or re-check is a new `delegate_task` `` | ``When that routing requires T3 delegation, start a new `delegate_task` `` | 只在已有委派规则要求 T3 委派时新开 `delegate_task` |
 
 ### 新加的（4 处）
 
@@ -61,7 +61,7 @@
 |---|---|
 | 4 `nxbridge-peer-partner` | 装了 nxbridge 时，Claude/Codex 对方是平级搭档，不是 `delegate_task` 子任务或子代理；按 nxbridge 的搭档规则协作（按擅长定负责人、商定分工、交接、复查，对方自己定模型和推理强度）；写明发消息的方式；只有用户点名 `delegate_task` 时才对它用 `delegate_task` |
 | 5 `nxbridge-background` | 给对方的后台工作交给 nxbridge 搭档 |
-| 6 `nxbridge-review` | 要对方审查或复查时，给 nxbridge 搭档发消息 |
+| 6 `nxbridge-review` | 指定搭档的复核走 nxbridge。搭档不可用时报告阻塞，继续独立工作，用户要求时才启动替代复核。普通同提供方复核优先新开原生子代理，其他场景按已有委派规则选工具 |
 | 3 `nxbridge-no-cli-fallback` | 在“不准退回原生工具、Workflow 或命令行”后面加括注：nxbridge 搭档不算退回，它就是 Claude/Codex 协作的通道 |
 
 ---
@@ -75,7 +75,7 @@
 | 3 | `nxbridge-no-cli-fallback` | 第 1 段 第 2 条 | 不准擅自换，不准退回原生工具、Workflow 或命令行 | 同原版，并补充：nxbridge 搭档不算退回，它就是 Claude/Codex 协作的通道 |
 | 4 | `nxbridge-peer-partner` | 第 1 段 第 1 条 | 要用另一家的模型，走 `delegate_task` | 装了 nxbridge 时，对方是平级搭档、不是 `delegate_task` 子任务，按 nxbridge 规则协作；`delegate_task` 只用于其他家，或用户点名时 |
 | 5 | `nxbridge-background` | 第 1 段 第 1 条 | 后台代理一律走 `delegate_task` | 自己这一家的后台代理走 `delegate_task`；给对方的后台工作交给 nxbridge 搭档 |
-| 6 | `nxbridge-review` | 第 1 段 第 3 条 | 每次审查或复查都新开一个 `delegate_task` | 要对方审查或复查的，发给 nxbridge 搭档；其余照旧 |
+| 6 | `nxbridge-review` | 第 1 段 第 3 条 | 每次审查或复查都新开一个 `delegate_task` | 指定搭档的复核走 nxbridge。搭档不可用时报告阻塞，继续独立工作，用户要求时才启动替代复核。普通同提供方复核优先新开原生子代理，其他场景按已有委派规则选工具 |
 
 ---
 
@@ -116,7 +116,7 @@ Ordinary coding tasks need no T3 tools.
 
 - Subagents: use your native tool when the child uses your provider, a model it offers and no settings beyond yours (Claude `Agent`, `run_in_background:false`; Codex `spawn_agent`, then wait). With nxbridge loaded, your Claude/Codex counterpart is your nxbridge peer partner, never a `delegate_task` child or subagent: follow the nxbridge partner rules (owner by strength, agreed splits, hand-offs, reviews, its own model and effort) and message it (Claude: `SendMessage` to `nxbridge:codex`, else the nxbridge `codex` MCP tools; Codex: nxbridge `claude.*` tools); `delegate_task` for it only if the user names `delegate_task`. Use `delegate_task` for models of other providers (not your counterpart), user-asked settings, a separate checkout (`isolation:"worktree"`), or `delegate_task` by name. A native type on another provider's model counts too. Background agent on your provider: `delegate_task`, never a background `Agent`; background work for your counterpart goes to the nxbridge partner. Workflow only when asked.
 - Call `orchestrator_capabilities` once per thread, before the first `delegate_task`. Again only after an error or a user-named provider change. Settings go in `target.options`. Provider or model unavailable: say so. Never switch unasked or fall back to native tools, Workflow or CLIs (the nxbridge partner is no fallback: it is the channel for Claude/Codex work). Never make a child's checkout in the shell or in `task`.
-- A review or re-check by your Claude/Codex counterpart: message the nxbridge partner. Every other new delegate review or re-check is a new `delegate_task` (brief, findings, objections), never a `t3_thread_send`. Fix small review findings yourself; start no delegate for them. When told to proceed without a delegate, or to run fewer, `task_cancel` the extras. Start no replacement.
+- For a review or re-check assigned to your nxbridge partner, message that partner. If it is unavailable, report the blocker and continue independent work. Only start a substitute review if the user asks. For other reviews, follow the subagent routing above. Prefer a fresh native subagent for an ordinary same-provider review. When that routing requires T3 delegation, start a new `delegate_task` (brief, findings, objections), never a `t3_thread_send`. Fix small review findings yourself; start no delegate for them. When told to proceed without a delegate, or to run fewer, `task_cancel` the extras. Start no replacement.
 - Follow a running delegate's `next`. Don't poll it (`task_status`, `sleep`, watchers, Monitor, ScheduleWakeup). Stop a delegate run you replace or no longer need with `task_cancel`, never `t3_thread_interrupt` on a `childThreadId`.
 - As a subagent or child, do the work yourself. Start no subagents unless your task says to.
 ```
@@ -132,7 +132,7 @@ Ordinary coding tasks need no T3 tools.
    以下情况用 `delegate_task`：**【改】其他提供方（不是你的对方）的模型**；用户要求了特定设置；需要单独的代码副本（`isolation:"worktree"`）；用户点名要 `delegate_task`。原生的子代理类型如果跑的是另一家的模型，也算“另一家”。
    **【改】你这一家的后台代理**用 `delegate_task`，绝不用后台 `Agent`；**【增】给对方的后台工作交给 nxbridge 搭档。** Workflow 只在被要求时才用。
 2. 每个线程在第一次 `delegate_task` 之前，先调用一次 `orchestrator_capabilities`；之后只在出错、或用户点名换提供方时再调。设置写在 `target.options` 里。提供方或模型不可用时，直接说明。绝不擅自更换，也不准退回原生工具、Workflow 或命令行 **【增】（nxbridge 搭档不算退回：它就是 Claude/Codex 协作的通道）**。绝不在 shell 或 `task` 里给子任务建代码副本。
-3. **【增】要你的 Claude/Codex 对方做审查或复查时，给 nxbridge 搭档发消息。** **【改】其他**每次新的委派审查或复查，都要新开一个 `delegate_task`（附上简报、发现的问题、异议），绝不用 `t3_thread_send`。小的审查问题自己修，不为它们开委派。被告知不用委派直接继续、或减少委派数量时，用 `task_cancel` 取消多余的，也不开替代的。
+3. **【增】指定搭档的复核走 nxbridge。搭档不可用时报告阻塞，继续独立工作，用户要求时才启动替代复核。普通同提供方复核优先新开原生子代理，其他场景按已有委派规则选工具。** **【改】** 需要 T3 委派时，新开 `delegate_task` 并附上简报、发现的问题和异议。小的审查问题自己修，不为它们开委派。被告知不用委派直接继续、或减少委派数量时，用 `task_cancel` 取消多余的，也不开替代的。
 4. 按运行中委派返回的 `next` 行事。不要轮询它（`task_status`、`sleep`、监视器、Monitor、ScheduleWakeup）。要停掉已被替换或不再需要的委派，用 `task_cancel`，绝不对 `childThreadId` 用 `t3_thread_interrupt`。
 5. 自己作为子代理或子任务时，亲自完成工作；除非任务要求，不再开子代理。
 
