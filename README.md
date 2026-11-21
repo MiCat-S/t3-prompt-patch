@@ -2,13 +2,24 @@
 
 # T3 Prompt Patch
 
-修改 T3 Code（Nightly）内置给 Claude 和 Codex 的提示词。改完后，在 T3 里 Claude 和 Codex 之间的协作改走 [nxbridge](https://github.com/MiCat-S/nxbridge)，两边是平级搭档，不再走 T3 自己的 `delegate_task`。顺带放宽两处预览和图表规则。
+修改 T3 Code（Nightly）内置给 Claude 和 Codex 的提示词。改完后，在 T3 里 Claude 和 Codex 之间的协作改走 [nxbridge](https://github.com/nxbridge/nxbridge)，两边是平级搭档，不再走 T3 自己的 `delegate_task`。顺带放宽两处预览和图表规则。
 
 只改提示词文本，不改 T3 的其他代码。改之前会备份原包，随时可以恢复。
 
 ## 和 nxbridge 一起用
 
-这个补丁要配合 [nxbridge](https://github.com/MiCat-S/nxbridge) 使用：先照 nxbridge 的说明装好它，再打这个补丁。T3 里哪个方向能用、界面上能看到什么、还要注意什么，见 nxbridge README 的“[和 T3 Code 一起用](https://github.com/MiCat-S/nxbridge#%E5%92%8C-t3-code-%E4%B8%80%E8%B5%B7%E7%94%A8)”。
+T3 里的 Claude 和 Codex 线程用的也是你的 `~/.claude`、`~/.codex` 配置，装好 nxbridge 后，这些线程也会加载它。但 T3 自带的提示词会让模型把给另一家的活交给 T3 自己的 `delegate_task`，这个补丁把它改成走 nxbridge。
+
+1. 照 nxbridge 的[安装说明](https://github.com/nxbridge/nxbridge#%E5%AE%89%E8%A3%85)装好它。
+2. 在系统终端里运行一次：
+
+   ```sh
+   nxbridge config set hosts.claude.sdk_user_prompt true
+   ```
+
+   T3 通过 Claude SDK 把你的输入交给 Claude，nxbridge 默认不把这种输入当成你本人发的。这样一来，在 T3 里中断正在跑的一轮之后（比如 Claude 干活时你又发了新消息），nxbridge 会一直扣着搭档的回信。打开这一项后，你在 T3 里发的消息算你本人的输入，中断后照常收信。代价是脚本通过 SDK 运行的 Claude（比如 `claude -p`）发的输入也会算成你本人的。这是 nxbridge 的敏感设置，要在系统终端里运行，在 Claude 里运行会被拒绝。
+3. 运行 `python3 t3-prompt-patch.py apply`，然后完全退出 T3 Code 再打开（见下文“使用”）。
+4. 在 T3 里新开一个 Claude 线程，直接说“让 Codex ……”就行，不用提 nxbridge。
 
 没装 nxbridge 也可以打：补丁 1、2 照常生效；补丁 3~6 是给 nxbridge 用的，见下文“改了什么”。
 
@@ -47,7 +58,7 @@ python3 t3-prompt-patch.py restore   # 恢复备份的原包
 
 `apply` 和 `restore` 之后，要**完全退出 T3 Code 再重新打开**才生效。退出会中断 T3 里正在运行的会话。
 
-旧版 `nxbridge-review` 会显示 `previous`。运行 `apply` 即可升级，原包备份仍可用于恢复。T3 Code 更新后也可重新运行 `apply`。如果新版本改了相关的提示词原文，脚本会列出找不到的补丁，并且不写入任何东西，这时需要按新原文更新脚本里的 `PATCHES`。
+旧版 `nxbridge-review` 会显示 `previous`。运行 `apply` 即可升级，原包备份仍可用于恢复。T3 Code 更新会换掉整个包，补丁随之失效，更新后要重新运行 `apply` 并重启 T3。如果新版本改了相关的提示词原文，脚本会列出找不到的补丁，并且不写入任何东西，这时需要按新原文更新脚本里的 `PATCHES`。
 
 只想在副本上试，不动已安装的 T3：
 
@@ -77,12 +88,17 @@ python3 t3-prompt-patch.py status --asar /tmp/app.asar
 
 ## 实测
 
+在 T3 Code 0.1.12-nightly.20261121.5024、nxbridge 0.1.1-965cfcc58ae0 上测过（6 条补丁都已打上，`hosts.claude.sdk_user_prompt` 已打开）：
+
+- **中断后收信**：T3 的 Claude 线程通过 nxbridge 给 Codex 发消息，趁它忙时中断这一轮并发新消息。Codex 的回信在中断后的这一轮里正常送到，没有被扣住。这是在子任务线程里测的，没有关掉这项设置做对照。
+- **子任务线程**：由别的线程派出来的 T3 子任务线程，每一轮都新起一个 Claude 进程，这一轮结束进程就退出。Codex 在它空闲时回的信不会丢，但要等这个线程下一轮才收到。普通线程一直用同一个进程，不受影响；普通线程空闲时能否被回信叫醒，这次没有重测。
+
 在 T3 Code 0.1.11-nightly.20261117.4825、nxbridge 0.1.1-3e3e754f55fa 上测过：
 
 - **Claude 线程找 Codex**：只说“请 Codex 回答……”或“请让 Codex 复查……”，没有提 nxbridge。Claude 用 `SendMessage` 发给 `nxbridge:codex`，没有调用 `delegate_task`。nxbridge 自动配了后台 Codex；Codex 回信后，T3 线程被自动叫醒并转述结果。整个往来在 T3 线程里可见。
 - **Codex 线程找 Claude**：Codex 也走了 nxbridge 的 `send_message`。但 nxbridge 要启动后台 Claude，需要先在 Claude 里做一次免审批确认，并信任工作目录（T3 无项目线程的目录在 `~/.t3/scratch/` 下）。这个方向没有测完。另外，T3 给每个 Codex 会话单独起私有的 `codex app-server`，nxbridge 无法在 Codex 线程空闲时叫醒它。
 
-T3 里能看到的是本线程发出的消息、回执和对方回信后的转述；后台搭档自己执行的命令和改动不在 T3 里显示。
+T3 里能看到的是本线程发出的消息、回执和对方回信后的转述；后台搭档自己执行的命令和改动不在 T3 里显示。想看双方往来，在终端运行 `nxbridge watch`。
 
 T3 Code 0.1.11-nightly.20261118.4864：提示词原文和 4825 逐字相同；在 `app.asar` 副本上 `apply`、`status` 都通过，打补丁前后只有这 6 处不同。上面的行为测试没有在这个版本上重做。
 
