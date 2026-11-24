@@ -4,7 +4,7 @@
 
 Patches the built-in prompts that T3 Code (Nightly) gives Claude and Codex. Afterwards, Claude and Codex working together inside T3 go through [nxbridge](https://github.com/nxbridge/nxbridge) as peer partners instead of through T3's own `delegate_task`. It also relaxes two preview and chart rules.
 
-Only prompt text changes; no other T3 code is touched. The original package is backed up first and can be restored at any time.
+Besides prompt text, it changes only one constant: how long an idle session is kept (patch 7). No other T3 code is touched. The original package is backed up first and can be restored at any time.
 
 ## Using it with nxbridge
 
@@ -25,7 +25,7 @@ You can apply it without nxbridge too: patches 1 and 2 take effect; patches 3–
 
 ## What changes
 
-Six patches, all in T3's orchestration prompt:
+Seven patches. The first six are in T3's orchestration prompt; the seventh changes one server constant:
 
 | # | Patch | Before | After |
 |---|---|---|---|
@@ -35,6 +35,7 @@ Six patches, all in T3's orchestration prompt:
 | 4 | `nxbridge-peer-partner` | Use `delegate_task` for another provider's model | With nxbridge loaded, the Claude/Codex counterpart is a peer partner, never a `delegate_task` child; follow nxbridge's partner rules (owner by strength, splits, hand-offs, reviews, its own model and effort); `delegate_task` only for other providers or when the user names it |
 | 5 | `nxbridge-background` | Background agent: always `delegate_task` | Background agent on your own provider: `delegate_task`; background work for the counterpart goes to the nxbridge partner |
 | 6 | `nxbridge-review` | Every review or re-check is a new `delegate_task` | Use nxbridge for an assigned partner review. If unavailable, continue independent work and start a substitute review only on user request. Prefer a fresh native subagent for ordinary same-provider reviews. Follow the existing routing in other cases. |
+| 7 | `idle-session-30min` | Close an idle Claude/Codex session process 2 minutes after its turn | Back to 30 minutes |
 
 Compared word by word with T3's original, by kind:
 
@@ -43,6 +44,8 @@ Compared word by word with T3's original, by kind:
 - **Added**: the nxbridge partner rules and how to message the partner (patch 4), background work and reviews for the counterpart go to the partner (patches 5, 6), the "partner is no fallback" note (patch 3), and native same-provider reviews with user control over partner substitution (patch 6).
 
 Nothing else in T3's prompts changes. The word-level comparison and the full original and patched prompts, with a Chinese paraphrase, are in [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md).
+
+Patch 7 is not a prompt. Since 0.1.12-nightly.20261123.5138 (upstream [#41174](https://github.com/pingdotgg/t3code/pull/41174)), T3 keeps a natively resumable session (Claude, Codex, OpenCode, Cursor) for 2 minutes after its turn instead of 30, to save memory (about 140 MB per idle Claude process). Once the process is gone, a message from the nxbridge partner waits in the queue until you next type in that thread, so the partner can no longer wake it. This patch sets the constant back to 30 minutes, at the cost of keeping idle processes 28 minutes longer. Earlier versions already use 30 minutes, so `status` shows `patched` there.
 
 Patches 3–6 are written for Claude and Codex with nxbridge: only patch 4 opens with "with nxbridge loaded"; patches 3, 5 and 6 rely on patch 4's "Claude/Codex counterpart" and "nxbridge partner". Other providers such as agy or Pi have no Claude/Codex counterpart, so these lines do not apply to them. Whether a Claude or Codex thread without nxbridge still uses `delegate_task` for its counterpart is untested.
 

@@ -4,7 +4,7 @@
 
 修改 T3 Code（Nightly）内置给 Claude 和 Codex 的提示词。改完后，在 T3 里 Claude 和 Codex 之间的协作改走 [nxbridge](https://github.com/nxbridge/nxbridge)，两边是平级搭档，不再走 T3 自己的 `delegate_task`。顺带放宽两处预览和图表规则。
 
-只改提示词文本，不改 T3 的其他代码。改之前会备份原包，随时可以恢复。
+除了提示词文本，只另改一个常量：空闲会话保留多久（补丁 7），T3 的其他代码不动。改之前会备份原包，随时可以恢复。
 
 ## 和 nxbridge 一起用
 
@@ -25,7 +25,7 @@ T3 里的 Claude 和 Codex 线程用的也是你的 `~/.claude`、`~/.codex` 配
 
 ## 改了什么
 
-一共 6 条补丁，都在 T3 的协作提示词里：
+一共 7 条补丁。前 6 条在 T3 的协作提示词里，第 7 条改的是服务端的一个常量：
 
 | # | 补丁名 | 原来 | 现在 |
 |---|---|---|---|
@@ -35,6 +35,7 @@ T3 里的 Claude 和 Codex 线程用的也是你的 `~/.claude`、`~/.codex` 配
 | 4 | `nxbridge-peer-partner` | 要用另一家的模型，走 `delegate_task` | 装了 nxbridge 时，Claude/Codex 对方是平级搭档、不是 `delegate_task` 子任务，按 nxbridge 的规则协作（按擅长分工、交接、复查，对方自己定模型和强度）；`delegate_task` 只用于其他家，或你点名时 |
 | 5 | `nxbridge-background` | 后台代理一律走 `delegate_task` | 自己这一家的后台代理走 `delegate_task`；给对方的后台工作交给 nxbridge 搭档 |
 | 6 | `nxbridge-review` | 每次审查或复查都新开一个 `delegate_task` | 指定搭档的复核走 nxbridge。搭档不可用时报告阻塞，继续独立工作，用户要求时才启动替代复核。普通同提供方复核优先新开原生子代理，其他场景按已有委派规则选工具 |
+| 7 | `idle-session-30min` | 一轮结束 2 分钟后关闭空闲的 Claude/Codex 会话进程 | 恢复成 30 分钟 |
 
 和 T3 原版逐词比对，按类型分：
 
@@ -43,6 +44,8 @@ T3 里的 Claude 和 Codex 线程用的也是你的 `~/.claude`、`~/.codex` 配
 - **新加**：nxbridge 搭档规则和发消息的方式（补丁 4），对方的后台工作和审查交给搭档（补丁 5、6），“搭档不算退回”的括注（补丁 3），普通同提供方复核优先使用原生子代理，搭档不可用时由用户决定是否替换（补丁 6）。
 
 除此之外，T3 的提示词一字未动。逐词对照、完整的原版和现版原文及中文转述见 [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md)。
+
+补丁 7 不是提示词。T3 从 0.1.12-nightly.20261123.5138 起（上游 [#41174](https://github.com/pingdotgg/t3code/pull/41174)），把能续接的会话（Claude、Codex、OpenCode、Cursor）一轮结束后的保留时间从 30 分钟改成 2 分钟，为了省内存（每个空闲 Claude 进程约 140 MB）。进程关掉后，nxbridge 搭档再发来的消息只能排队，等你在那个线程再发一句话才会送到，搭档就叫不醒它了。这条补丁把常量改回 30 分钟；代价是空闲进程多留 28 分钟内存。更早的版本本来就是 30 分钟，`status` 会直接显示 `patched`。
 
 补丁 3~6 是为装了 nxbridge 的 Claude 和 Codex 写的：只有第 4 条开头写明“装了 nxbridge 时”，第 3、5、6 条靠第 4 条里“Claude/Codex 对方”“nxbridge 搭档”的定义限定范围。agy、Pi 等其他提供方没有 Claude/Codex 对方，这几句对它们不适用。没装 nxbridge 的 Claude/Codex 线程能否照旧用 `delegate_task` 找对方，没有实测。
 
