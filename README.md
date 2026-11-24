@@ -4,7 +4,7 @@
 
 修改 T3 Code（Nightly）内置给 Claude 和 Codex 的提示词。改完后，在 T3 里 Claude 和 Codex 之间的协作改走 [nxbridge](https://github.com/nxbridge/nxbridge)，两边是平级搭档，不再走 T3 自己的 `delegate_task`。顺带放宽两处预览和图表规则。
 
-除了提示词文本，只另改一个常量：空闲会话保留多久（补丁 7），T3 的其他代码不动。改之前会备份原包，随时可以恢复。
+默认修改提示词和空闲会话保留时间（补丁 7）。也可以选择关闭 T3 Code 的使用统计。脚本会备份原包，随时可以恢复。
 
 ## 和 nxbridge 一起用
 
@@ -70,6 +70,25 @@ cp "/Applications/T3 Code (Nightly).app/Contents/Resources/app.asar" /tmp/app.as
 python3 t3-prompt-patch.py apply --asar /tmp/app.asar
 python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ```
+
+### 关闭使用统计
+
+macOS Nightly 用户可以直接运行这一行，无需克隆仓库：
+
+```sh
+(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py | python3 - apply --disable-product-telemetry)
+```
+
+已经下载脚本的话，可以在脚本所在目录运行：
+
+```sh
+python3 t3-prompt-patch.py apply --disable-product-telemetry
+python3 t3-prompt-patch.py status --disable-product-telemetry
+```
+
+这个参数随原有补丁一起应用。它让 T3 Code 本机服务端停止记录和发送产品使用统计，并跳过两处用于遥测的账号标识读取。Tailscale 直连继续走原有配对路径。浏览器或手机 App 自己发送的诊断，以及发往 Axiom 的连接诊断，仍由各自的设置或网络规则控制。验证版本为 macOS Nightly `0.1.12-nightly.20261124.5178`。
+
+T3 更新后，要继续关闭使用统计，请在重新应用时带上同一个参数。要撤销，先运行 `restore` 恢复原包，再运行普通的 `apply` 恢复提示词和会话补丁。
 
 ## 工作原理
 

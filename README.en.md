@@ -4,7 +4,7 @@
 
 Patches the built-in prompts that T3 Code (Nightly) gives Claude and Codex. Afterwards, Claude and Codex working together inside T3 go through [nxbridge](https://github.com/nxbridge/nxbridge) as peer partners instead of through T3's own `delegate_task`. It also relaxes two preview and chart rules.
 
-Besides prompt text, it changes only one constant: how long an idle session is kept (patch 7). No other T3 code is touched. The original package is backed up first and can be restored at any time.
+By default, it patches the prompts and the idle session timeout (patch 7). You can also opt in to disabling T3 Code product usage telemetry. The script backs up the original package so you can restore it.
 
 ## Using it with nxbridge
 
@@ -70,6 +70,25 @@ cp "/Applications/T3 Code (Nightly).app/Contents/Resources/app.asar" /tmp/app.as
 python3 t3-prompt-patch.py apply --asar /tmp/app.asar
 python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ```
+
+### Disable product usage telemetry
+
+On macOS Nightly, run this command directly:
+
+```sh
+(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py | python3 - apply --disable-product-telemetry)
+```
+
+If you already downloaded the script, run these commands from its directory:
+
+```sh
+python3 t3-prompt-patch.py apply --disable-product-telemetry
+python3 t3-prompt-patch.py status --disable-product-telemetry
+```
+
+This option applies alongside the existing patches. It stops the local T3 Code server from recording and sending product usage events and skips both account identity lookups used by that telemetry. Direct Tailscale pairing uses the existing connection path. Connection diagnostics sent to Axiom and diagnostics from separate browser or mobile clients are still governed by their own settings or network rules. Verified on macOS Nightly `0.1.12-nightly.20261124.5178`.
+
+Pass the same option again when reapplying after an update. To remove the telemetry patch, run `restore` and then run plain `apply` to reapply the prompt and session patches.
 
 ## How it works
 
