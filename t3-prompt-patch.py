@@ -5,10 +5,10 @@ Usage:
   t3-prompt-patch.py status            # show whether the installed app is patched
   t3-prompt-patch.py apply [--asar P]  # back up original, apply PATCHES (idempotent)
   t3-prompt-patch.py restore           # put the backed-up original app.asar back
-  t3-prompt-patch.py apply --disable-product-telemetry
 
 Changes take effect after T3 Code is fully quit and reopened.
-After a T3 Code update, run `apply` again with the same options.
+After a T3 Code update the patch is gone: run `apply` again.
+To turn off product telemetry, use t3-telemetry-off.py.
 """
 import hashlib, json, os, plistlib, shutil, struct, sys, tempfile
 
@@ -54,20 +54,6 @@ PATCHES = [
         "name": "idle-session-30min",
         "find": "const DEFAULT_IDLE_TIMEOUT_MS = 12e4;",
         "replace": "const DEFAULT_IDLE_TIMEOUT_MS = 18e5;",
-    },
-]
-PRODUCT_TELEMETRY_PATCHES = [
-    {
-        # AnalyticsService already skips recording and sending when distinctId is null.
-        "name": "disable-product-telemetry",
-        "find": "const { distinctId, installId } = yield* getTelemetryIdentity;",
-        "replace": "const distinctId = null;\n\tconst installId = null;",
-    },
-    {
-        # The startup event collects owners separately, before calling AnalyticsService.
-        "name": "disable-telemetry-owner-lookup",
-        "find": "const getServerOwners = flatMap(HomeDirectory, getServerOwnersForHome);",
-        "replace": "const getServerOwners = succeed([]);",
     },
 ]
 MARKER = "Ordinary coding tasks need no T3 tools."
@@ -141,9 +127,9 @@ def match_patch(text, patch):
     return "NOT FOUND", None
 
 
-def patch_text(text, patches):
+def patch_text(text):
     done, already, missing = [], [], []
-    for p in patches:
+    for p in PATCHES:
         state, value = match_patch(text, p)
         if state in ("original", "previous"):
             text = text.replace(value, p["replace"])
@@ -164,21 +150,21 @@ def backup_path():
     return os.path.join(HOME, "backup", version(), "app.asar")
 
 
-def cmd_status(asar, patches):
+def cmd_status(asar):
     data, header, base = read_asar(asar)
     path, entry = find_target(data, base, header)
     text = content(data, base, entry).decode("utf-8")
     print(f"T3 Code {version()}  bundle: {path}")
-    for p in patches:
+    for p in PATCHES:
         state, _ = match_patch(text, p)
         print(f"  {p['name']}: {state}")
     print(f"  backup: {backup_path() if os.path.exists(backup_path()) else 'none'}")
 
 
-def cmd_apply(asar, in_place_app, patches):
+def cmd_apply(asar, in_place_app):
     data, header, base = read_asar(asar)
     path, entry = find_target(data, base, header)
-    new_text, done, already, missing = patch_text(content(data, base, entry).decode("utf-8"), patches)
+    new_text, done, already, missing = patch_text(content(data, base, entry).decode("utf-8"))
     if missing:
         sys.exit(f"Patch text not found: {', '.join(missing)}. Nothing written.")
     if not done:
@@ -226,7 +212,7 @@ def cmd_restore(asar):
         sys.exit(f"No backup for T3 Code {version()} at {bp}.")
     shutil.copy2(bp, asar + ".restore")
     os.replace(asar + ".restore", asar)
-    print("Restored original app.asar. Quit and reopen T3 Code.")
+    print("Restored original app.asar (this also removes t3-telemetry-off.py changes). Quit and reopen T3 Code.")
 
 
 if __name__ == "__main__":
@@ -234,11 +220,12 @@ if __name__ == "__main__":
     cmd = args[0] if args else "status"
     custom = args[args.index("--asar") + 1] if "--asar" in args else None
     asar = custom or os.path.join(APP, "Contents/Resources/app.asar")
-    patches = PATCHES + PRODUCT_TELEMETRY_PATCHES if "--disable-product-telemetry" in args else PATCHES
+    if "--disable-product-telemetry" in args:
+        sys.exit("Telemetry moved to t3-telemetry-off.py; run that script instead. Nothing written.")
     if cmd == "status":
-        cmd_status(asar, patches)
+        cmd_status(asar)
     elif cmd == "apply":
-        cmd_apply(asar, in_place_app=custom is None, patches=patches)
+        cmd_apply(asar, in_place_app=custom is None)
     elif cmd == "restore":
         cmd_restore(asar)
     else:

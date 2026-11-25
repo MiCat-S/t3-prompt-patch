@@ -4,7 +4,7 @@
 
 修改 T3 Code（Nightly）内置给 Claude 和 Codex 的提示词。改完后，在 T3 里 Claude 和 Codex 之间的协作改走 [nxbridge](https://github.com/nxbridge/nxbridge)，两边是平级搭档，不再走 T3 自己的 `delegate_task`。顺带放宽两处预览和图表规则。
 
-默认修改提示词和空闲会话保留时间（补丁 7）。也可以选择关闭 T3 Code 的使用统计。脚本会备份原包，随时可以恢复。
+除了提示词文本，只另改一个常量：空闲会话保留多久（补丁 7）。脚本会备份原包，随时可以恢复。关闭 T3 Code 使用统计是另一个独立脚本，见下文“关闭使用统计”。
 
 ## 和 nxbridge 一起用
 
@@ -71,24 +71,28 @@ python3 t3-prompt-patch.py apply --asar /tmp/app.asar
 python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ```
 
-### 关闭使用统计
+## 关闭使用统计（另一个脚本）
+
+关闭 T3 Code 使用统计用单独的脚本 `t3-telemetry-off.py`，它不改提示词，也不需要 nxbridge。两个脚本互不依赖，可以只用其中一个，也可以都用，先后顺序随意。
 
 macOS Nightly 用户可以直接运行这一行，无需克隆仓库：
 
 ```sh
-(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py | python3 - apply --disable-product-telemetry)
+(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-telemetry-off.py | python3 - apply)
 ```
 
-已经下载脚本的话，可以在脚本所在目录运行：
+已经下载脚本的话，在脚本所在目录运行：
 
 ```sh
-python3 t3-prompt-patch.py apply --disable-product-telemetry
-python3 t3-prompt-patch.py status --disable-product-telemetry
+python3 t3-telemetry-off.py status
+python3 t3-telemetry-off.py apply
 ```
 
-这个参数随原有补丁一起应用。它让 T3 Code 本机服务端停止记录和发送产品使用统计，并跳过两处用于遥测的账号标识读取。Tailscale 直连继续走原有配对路径。浏览器或手机 App 自己发送的诊断，以及发往 Axiom 的连接诊断，仍由各自的设置或网络规则控制。验证版本为 macOS Nightly `0.1.12-nightly.20261124.5178`。
+它让 T3 Code 本机服务端停止记录和发送产品使用统计，并跳过两处只给遥测用的标识读取（本机匿名 ID 和关联的 T3 Connect 账号）。Tailscale 直连继续走原有配对路径。浏览器或手机 App 自己发送的诊断，以及发往 Axiom 的连接诊断，仍由各自的设置或网络规则控制。在 macOS Nightly `0.1.12-nightly.20261124.5178` 上实测过；`0.1.12-nightly.20261124.5209` 上确认两处补丁都能打上，代码在标识为空时跳过记录和发送，没有重新实测网络请求。
 
-T3 更新后，要继续关闭使用统计，请在重新应用时带上同一个参数。要撤销，先运行 `restore` 恢复原包，再运行普通的 `apply` 恢复提示词和会话补丁。
+和提示词补丁一样，T3 更新后要重新运行 `apply` 并重启 T3。两个脚本共用同一份原包备份（`~/.t3-prompt-patch/backup/<版本>/`），由先打补丁的那个脚本保存。任何一个脚本的 `restore` 都会恢复原包，两边的改动一起撤销；之后想保留哪边，就重新运行那个脚本的 `apply`。
+
+以前用 `t3-prompt-patch.py apply --disable-product-telemetry` 的，现在这个参数会报错并提示改用新脚本，什么都不写入。
 
 ## 工作原理
 
@@ -134,7 +138,8 @@ T3 Code 0.1.11-nightly.20261118.4864：提示词原文和 4825 逐字相同；�
 
 | 文件 | 说明 |
 |---|---|
-| `t3-prompt-patch.py` | 补丁脚本，补丁内容在文件开头的 `PATCHES` 里 |
+| `t3-prompt-patch.py` | 提示词补丁脚本（含补丁 7），补丁内容在文件开头的 `PATCHES` 里 |
+| `t3-telemetry-off.py` | 关闭使用统计的独立脚本，补丁内容同样在文件开头的 `PATCHES` 里 |
 | `docs/prompts-original-vs-patched.zh.md` | T3 提示词原版与现版对照，附中文转述 |
 | `LICENSE` | MIT 许可证 |
 

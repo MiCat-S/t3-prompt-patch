@@ -4,7 +4,7 @@
 
 Patches the built-in prompts that T3 Code (Nightly) gives Claude and Codex. Afterwards, Claude and Codex working together inside T3 go through [nxbridge](https://github.com/nxbridge/nxbridge) as peer partners instead of through T3's own `delegate_task`. It also relaxes two preview and chart rules.
 
-By default, it patches the prompts and the idle session timeout (patch 7). You can also opt in to disabling T3 Code product usage telemetry. The script backs up the original package so you can restore it.
+Besides prompt text, it changes only one constant: how long an idle session is kept (patch 7). The script backs up the original package so you can restore it. Disabling T3 Code product usage telemetry is a separate script; see "Disable product usage telemetry" below.
 
 ## Using it with nxbridge
 
@@ -71,24 +71,28 @@ python3 t3-prompt-patch.py apply --asar /tmp/app.asar
 python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ```
 
-### Disable product usage telemetry
+## Disable product usage telemetry (separate script)
 
-On macOS Nightly, run this command directly:
+Disabling T3 Code product usage telemetry is a separate script, `t3-telemetry-off.py`. It does not touch the prompts and does not need nxbridge. The two scripts are independent: use either one or both, in any order.
 
-```sh
-(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py | python3 - apply --disable-product-telemetry)
-```
-
-If you already downloaded the script, run these commands from its directory:
+macOS Nightly users can run this line without cloning the repository:
 
 ```sh
-python3 t3-prompt-patch.py apply --disable-product-telemetry
-python3 t3-prompt-patch.py status --disable-product-telemetry
+(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-telemetry-off.py | python3 - apply)
 ```
 
-This option applies alongside the existing patches. It stops the local T3 Code server from recording and sending product usage events and skips both account identity lookups used by that telemetry. Direct Tailscale pairing uses the existing connection path. Connection diagnostics sent to Axiom and diagnostics from separate browser or mobile clients are still governed by their own settings or network rules. Verified on macOS Nightly `0.1.12-nightly.20261124.5178`.
+With the script downloaded, run from its directory:
 
-Pass the same option again when reapplying after an update. To remove the telemetry patch, run `restore` and then run plain `apply` to reapply the prompt and session patches.
+```sh
+python3 t3-telemetry-off.py status
+python3 t3-telemetry-off.py apply
+```
+
+It stops the local T3 Code server from recording and sending product usage events and skips the two identity lookups used only by that telemetry (the local anonymous ID and the linked T3 Connect account). Direct Tailscale pairing uses the existing connection path. Connection diagnostics sent to Axiom and diagnostics from separate browser or mobile clients are still governed by their own settings or network rules. Tested on macOS Nightly `0.1.12-nightly.20261124.5178`. On `0.1.12-nightly.20261124.5209`, both patches apply and the code skips recording and sending when the identity is empty; network requests were not re-tested.
+
+As with the prompt patch, run `apply` again and restart T3 after an update. Both scripts share one backup of the original package (`~/.t3-prompt-patch/backup/<version>/`), saved by whichever script patches first. `restore` from either script puts the original back and removes both scripts' changes; then rerun `apply` for the one you want to keep.
+
+`t3-prompt-patch.py apply --disable-product-telemetry` now stops with a message pointing to the new script and writes nothing.
 
 ## How it works
 
@@ -134,7 +138,8 @@ T3 Code 0.1.11-nightly.20261118.4864: the prompt text is identical to 4825; `app
 
 | File | Purpose |
 |---|---|
-| `t3-prompt-patch.py` | Patch script; the patches are in `PATCHES` at the top |
+| `t3-prompt-patch.py` | Prompt patch script (including patch 7); the patches are in `PATCHES` at the top |
+| `t3-telemetry-off.py` | Separate script that disables product usage telemetry; its patches are in `PATCHES` at the top |
 | `docs/prompts-original-vs-patched.zh.md` | Original vs patched T3 prompts, with a Chinese paraphrase |
 | `LICENSE` | MIT license |
 
