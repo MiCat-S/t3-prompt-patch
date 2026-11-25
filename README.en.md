@@ -4,7 +4,21 @@
 
 Patches the built-in prompts that T3 Code (Nightly) gives Claude and Codex. Afterwards, Claude and Codex working together inside T3 go through [nxbridge](https://github.com/nxbridge/nxbridge) as peer partners instead of through T3's own `delegate_task`. It also relaxes two preview and chart rules.
 
-Besides prompt text, it changes only one constant: how long an idle session is kept (patch 7). The script backs up the original package so you can restore it. Disabling T3 Code product usage telemetry is a separate script; see "Disable product usage telemetry" below.
+Only prompt text changes; no other T3 code is touched. The original package is backed up first and can be restored at any time.
+
+## Three scripts
+
+The repository has three independent scripts. Use any one of them or all, in any order:
+
+| Script | What it does | One line (macOS Nightly, no clone needed) |
+|---|---|---|
+| `t3-prompt-patch.py` | Patches the prompts so Claude and Codex work together through nxbridge (most of this page) | `(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py \| python3 - apply)` |
+| `t3-idle-30min.py` | Keeps idle sessions for 30 minutes instead of 2; see "Idle sessions back to 30 minutes" | `(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-idle-30min.py \| python3 - apply)` |
+| `t3-telemetry-off.py` | Disables T3 Code product usage telemetry; see "Disable product usage telemetry" | `(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-telemetry-off.py \| python3 - apply)` |
+
+All three work the same way: `status` shows the state, `apply` backs up the original and patches (idempotent), `restore` puts the original back, and `--asar <path>` works on a copy. After `apply` or `restore`, quit T3 Code completely and reopen it. A T3 Code update replaces the whole package and drops the patches, so run `apply` again and restart T3 after updating.
+
+The three scripts share one backup of the original package (`~/.t3-prompt-patch/backup/<version>/`), saved by whichever script patches first. `restore` from any of them puts the original back and removes every script's changes; then rerun `apply` for the ones you want to keep.
 
 ## Using it with nxbridge
 
@@ -25,7 +39,7 @@ You can apply it without nxbridge too: patches 1 and 2 take effect; patches 3–
 
 ## What changes
 
-Seven patches. The first six are in T3's orchestration prompt; the seventh changes one server constant:
+Six patches, all in T3's orchestration prompt:
 
 | # | Patch | Before | After |
 |---|---|---|---|
@@ -35,7 +49,6 @@ Seven patches. The first six are in T3's orchestration prompt; the seventh chang
 | 4 | `nxbridge-peer-partner` | Use `delegate_task` for another provider's model | With nxbridge loaded, the Claude/Codex counterpart is a peer partner, never a `delegate_task` child; follow nxbridge's partner rules (owner by strength, splits, hand-offs, reviews, its own model and effort); `delegate_task` only for other providers or when the user names it |
 | 5 | `nxbridge-background` | Background agent: always `delegate_task` | Background agent on your own provider: `delegate_task`; background work for the counterpart goes to the nxbridge partner |
 | 6 | `nxbridge-review` | Every review or re-check is a new `delegate_task` | Use nxbridge for an assigned partner review. If unavailable, continue independent work and start a substitute review only on user request. Prefer a fresh native subagent for ordinary same-provider reviews. Follow the existing routing in other cases. |
-| 7 | `idle-session-30min` | Close an idle Claude/Codex session process 2 minutes after its turn | Back to 30 minutes |
 
 Compared word by word with T3's original, by kind:
 
@@ -45,13 +58,19 @@ Compared word by word with T3's original, by kind:
 
 Nothing else in T3's prompts changes. The word-level comparison and the full original and patched prompts, with a Chinese paraphrase, are in [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md).
 
-Patch 7 is not a prompt. Since 0.1.12-nightly.20261123.5138 (upstream [#41174](https://github.com/pingdotgg/t3code/pull/41174)), T3 keeps a natively resumable session (Claude, Codex, OpenCode, Cursor) for 2 minutes after its turn instead of 30, to save memory (about 140 MB per idle Claude process). Once the process is gone, a message from the nxbridge partner waits in the queue until you next type in that thread, so the partner can no longer wake it. This patch sets the constant back to 30 minutes, at the cost of keeping idle processes 28 minutes longer. Earlier versions already use 30 minutes, so `status` shows `patched` there.
-
 Patches 3–6 are written for Claude and Codex with nxbridge: only patch 4 opens with "with nxbridge loaded"; patches 3, 5 and 6 rely on patch 4's "Claude/Codex counterpart" and "nxbridge partner". Other providers such as agy or Pi have no Claude/Codex counterpart, so these lines do not apply to them. Whether a Claude or Codex thread without nxbridge still uses `delegate_task` for its counterpart is untested.
 
 ## Usage
 
 Needs Python 3, standard library only (`/usr/bin/python3` on macOS works).
+
+macOS Nightly users can run this line without cloning the repository:
+
+```sh
+(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py | python3 - apply)
+```
+
+With the script downloaded, run from its directory:
 
 ```sh
 python3 t3-prompt-patch.py status    # per-patch state: patched / previous / original / NOT FOUND
@@ -71,26 +90,17 @@ python3 t3-prompt-patch.py apply --asar /tmp/app.asar
 python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ```
 
-## Disable product usage telemetry (separate script)
+## Idle sessions back to 30 minutes
 
-Disabling T3 Code product usage telemetry is a separate script, `t3-telemetry-off.py`. It does not touch the prompts and does not need nxbridge. The two scripts are independent: use either one or both, in any order.
+`t3-idle-30min.py` does not touch the prompts and does not need nxbridge; it changes one T3 server constant.
 
-macOS Nightly users can run this line without cloning the repository:
+Since 0.1.12-nightly.20261123.5138 (upstream [#41174](https://github.com/pingdotgg/t3code/pull/41174)), T3 keeps a natively resumable session (Claude, Codex, OpenCode, Cursor) for 2 minutes after its turn instead of 30, to save memory (about 140 MB per idle Claude process). Once the process is gone, a message from the nxbridge partner waits in the queue until you next type in that thread, so the partner can no longer wake it. This script sets the constant back to 30 minutes, at the cost of keeping idle processes 28 minutes longer. Earlier versions already use 30 minutes, so `status` shows `patched` there. Archiving, deleting or settling a thread still ends its process right away, regardless of this timeout.
 
-```sh
-(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-telemetry-off.py | python3 - apply)
-```
+## Disable product usage telemetry
 
-With the script downloaded, run from its directory:
-
-```sh
-python3 t3-telemetry-off.py status
-python3 t3-telemetry-off.py apply
-```
+`t3-telemetry-off.py` does not touch the prompts and does not need nxbridge.
 
 It stops the local T3 Code server from recording and sending product usage events and skips the two identity lookups used only by that telemetry (the local anonymous ID and the linked T3 Connect account). Direct Tailscale pairing uses the existing connection path. Connection diagnostics sent to Axiom and diagnostics from separate browser or mobile clients are still governed by their own settings or network rules. Tested on macOS Nightly `0.1.12-nightly.20261124.5178`. On `0.1.12-nightly.20261124.5209`, both patches apply and the code skips recording and sending when the identity is empty; network requests were not re-tested.
-
-As with the prompt patch, run `apply` again and restart T3 after an update. Both scripts share one backup of the original package (`~/.t3-prompt-patch/backup/<version>/`), saved by whichever script patches first. `restore` from either script puts the original back and removes both scripts' changes; then rerun `apply` for the one you want to keep.
 
 `t3-prompt-patch.py apply --disable-product-telemetry` now stops with a message pointing to the new script and writes nothing.
 
@@ -138,8 +148,9 @@ T3 Code 0.1.11-nightly.20261118.4864: the prompt text is identical to 4825; `app
 
 | File | Purpose |
 |---|---|
-| `t3-prompt-patch.py` | Prompt patch script (including patch 7); the patches are in `PATCHES` at the top |
-| `t3-telemetry-off.py` | Separate script that disables product usage telemetry; its patches are in `PATCHES` at the top |
+| `t3-prompt-patch.py` | Prompt patch script; the patches are in `PATCHES` at the top |
+| `t3-idle-30min.py` | Separate script that keeps idle sessions for 30 minutes |
+| `t3-telemetry-off.py` | Separate script that disables product usage telemetry |
 | `docs/prompts-original-vs-patched.zh.md` | Original vs patched T3 prompts, with a Chinese paraphrase |
 | `LICENSE` | MIT license |
 

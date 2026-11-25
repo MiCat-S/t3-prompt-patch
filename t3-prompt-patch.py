@@ -8,7 +8,7 @@ Usage:
 
 Changes take effect after T3 Code is fully quit and reopened.
 After a T3 Code update the patch is gone: run `apply` again.
-To turn off product telemetry, use t3-telemetry-off.py.
+Product telemetry and the idle session timeout have their own scripts: t3-telemetry-off.py, t3-idle-30min.py.
 """
 import hashlib, json, os, plistlib, shutil, struct, sys, tempfile
 
@@ -47,13 +47,6 @@ PATCHES = [
         "find": "- Every new delegate review or re-check is a new \\`delegate_task\\`",
         "previous": "- A review or re-check by your Claude/Codex counterpart: message the nxbridge partner. Every other new delegate review or re-check is a new \\`delegate_task\\`",
         "replace": "- For a review or re-check assigned to your nxbridge partner, message that partner. If it is unavailable, report the blocker and continue independent work. Only start a substitute review if the user asks. For other reviews, follow the subagent routing above. Prefer a fresh native subagent for an ordinary same-provider review. When that routing requires T3 delegation, start a new \\`delegate_task\\`",
-    },
-    # Not a prompt: T3 #41174 closes an idle Claude/Codex session 2 minutes after its turn, so an
-    # nxbridge partner message arriving later finds no live process to wake. Restore the old 30 minutes.
-    {
-        "name": "idle-session-30min",
-        "find": "const DEFAULT_IDLE_TIMEOUT_MS = 12e4;",
-        "replace": "const DEFAULT_IDLE_TIMEOUT_MS = 18e5;",
     },
 ]
 MARKER = "Ordinary coding tasks need no T3 tools."
@@ -212,7 +205,7 @@ def cmd_restore(asar):
         sys.exit(f"No backup for T3 Code {version()} at {bp}.")
     shutil.copy2(bp, asar + ".restore")
     os.replace(asar + ".restore", asar)
-    print("Restored original app.asar (this also removes t3-telemetry-off.py changes). Quit and reopen T3 Code.")
+    print("Restored original app.asar (this also removes the other scripts' changes). Quit and reopen T3 Code.")
 
 
 if __name__ == "__main__":

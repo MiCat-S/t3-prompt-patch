@@ -4,7 +4,21 @@
 
 修改 T3 Code（Nightly）内置给 Claude 和 Codex 的提示词。改完后，在 T3 里 Claude 和 Codex 之间的协作改走 [nxbridge](https://github.com/nxbridge/nxbridge)，两边是平级搭档，不再走 T3 自己的 `delegate_task`。顺带放宽两处预览和图表规则。
 
-除了提示词文本，只另改一个常量：空闲会话保留多久（补丁 7）。脚本会备份原包，随时可以恢复。关闭 T3 Code 使用统计是另一个独立脚本，见下文“关闭使用统计”。
+只改提示词文本，不改 T3 的其他代码。改之前会备份原包，随时可以恢复。
+
+## 三个脚本
+
+仓库里有三个互相独立的脚本，可以只用其中一个，也可以都用，先后顺序随意：
+
+| 脚本 | 作用 | 一行运行（macOS Nightly，无需克隆仓库） |
+|---|---|---|
+| `t3-prompt-patch.py` | 改提示词，让 Claude 和 Codex 走 nxbridge 协作（本页主要内容） | `(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py \| python3 - apply)` |
+| `t3-idle-30min.py` | 空闲会话的保留时间从 2 分钟改回 30 分钟，见下文“空闲会话改回 30 分钟” | `(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-idle-30min.py \| python3 - apply)` |
+| `t3-telemetry-off.py` | 关闭 T3 Code 使用统计，见下文“关闭使用统计” | `(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-telemetry-off.py \| python3 - apply)` |
+
+三个脚本用法相同：`status` 查看状态，`apply` 备份原包并打补丁（可重复运行），`restore` 恢复原包，`--asar <路径>` 只改指定副本。`apply` 或 `restore` 之后要完全退出 T3 Code 再打开才生效。T3 更新会换掉整个包，补丁随之失效，更新后要重新运行 `apply` 并重启 T3。
+
+三个脚本共用同一份原包备份（`~/.t3-prompt-patch/backup/<版本>/`），由先打补丁的那个脚本保存。任何一个脚本的 `restore` 都会恢复原包，所有脚本的改动一起撤销；之后想保留哪些，就重新运行对应脚本的 `apply`。
 
 ## 和 nxbridge 一起用
 
@@ -25,7 +39,7 @@ T3 里的 Claude 和 Codex 线程用的也是你的 `~/.claude`、`~/.codex` 配
 
 ## 改了什么
 
-一共 7 条补丁。前 6 条在 T3 的协作提示词里，第 7 条改的是服务端的一个常量：
+一共 6 条补丁，都在 T3 的协作提示词里：
 
 | # | 补丁名 | 原来 | 现在 |
 |---|---|---|---|
@@ -35,7 +49,6 @@ T3 里的 Claude 和 Codex 线程用的也是你的 `~/.claude`、`~/.codex` 配
 | 4 | `nxbridge-peer-partner` | 要用另一家的模型，走 `delegate_task` | 装了 nxbridge 时，Claude/Codex 对方是平级搭档、不是 `delegate_task` 子任务，按 nxbridge 的规则协作（按擅长分工、交接、复查，对方自己定模型和强度）；`delegate_task` 只用于其他家，或你点名时 |
 | 5 | `nxbridge-background` | 后台代理一律走 `delegate_task` | 自己这一家的后台代理走 `delegate_task`；给对方的后台工作交给 nxbridge 搭档 |
 | 6 | `nxbridge-review` | 每次审查或复查都新开一个 `delegate_task` | 指定搭档的复核走 nxbridge。搭档不可用时报告阻塞，继续独立工作，用户要求时才启动替代复核。普通同提供方复核优先新开原生子代理，其他场景按已有委派规则选工具 |
-| 7 | `idle-session-30min` | 一轮结束 2 分钟后关闭空闲的 Claude/Codex 会话进程 | 恢复成 30 分钟 |
 
 和 T3 原版逐词比对，按类型分：
 
@@ -45,13 +58,19 @@ T3 里的 Claude 和 Codex 线程用的也是你的 `~/.claude`、`~/.codex` 配
 
 除此之外，T3 的提示词一字未动。逐词对照、完整的原版和现版原文及中文转述见 [docs/prompts-original-vs-patched.zh.md](docs/prompts-original-vs-patched.zh.md)。
 
-补丁 7 不是提示词。T3 从 0.1.12-nightly.20261123.5138 起（上游 [#41174](https://github.com/pingdotgg/t3code/pull/41174)），把能续接的会话（Claude、Codex、OpenCode、Cursor）一轮结束后的保留时间从 30 分钟改成 2 分钟，为了省内存（每个空闲 Claude 进程约 140 MB）。进程关掉后，nxbridge 搭档再发来的消息只能排队，等你在那个线程再发一句话才会送到，搭档就叫不醒它了。这条补丁把常量改回 30 分钟；代价是空闲进程多留 28 分钟内存。更早的版本本来就是 30 分钟，`status` 会直接显示 `patched`。
-
 补丁 3~6 是为装了 nxbridge 的 Claude 和 Codex 写的：只有第 4 条开头写明“装了 nxbridge 时”，第 3、5、6 条靠第 4 条里“Claude/Codex 对方”“nxbridge 搭档”的定义限定范围。agy、Pi 等其他提供方没有 Claude/Codex 对方，这几句对它们不适用。没装 nxbridge 的 Claude/Codex 线程能否照旧用 `delegate_task` 找对方，没有实测。
 
 ## 使用
 
 需要 Python 3，只用标准库，不用装依赖（macOS 上的 `/usr/bin/python3` 即可）。
+
+macOS Nightly 用户可以直接运行这一行，无需克隆仓库：
+
+```sh
+(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-prompt-patch.py | python3 - apply)
+```
+
+已经下载脚本的话，在脚本所在目录运行：
 
 ```sh
 python3 t3-prompt-patch.py status    # 查看每条补丁的状态：patched / previous / original / NOT FOUND
@@ -71,26 +90,17 @@ python3 t3-prompt-patch.py apply --asar /tmp/app.asar
 python3 t3-prompt-patch.py status --asar /tmp/app.asar
 ```
 
-## 关闭使用统计（另一个脚本）
+## 空闲会话改回 30 分钟
 
-关闭 T3 Code 使用统计用单独的脚本 `t3-telemetry-off.py`，它不改提示词，也不需要 nxbridge。两个脚本互不依赖，可以只用其中一个，也可以都用，先后顺序随意。
+脚本 `t3-idle-30min.py`，不改提示词，也不需要 nxbridge，只改 T3 服务端的一个常量。
 
-macOS Nightly 用户可以直接运行这一行，无需克隆仓库：
+T3 从 0.1.12-nightly.20261123.5138 起（上游 [#41174](https://github.com/pingdotgg/t3code/pull/41174)），把能续接的会话（Claude、Codex、OpenCode、Cursor）一轮结束后的保留时间从 30 分钟改成 2 分钟，为了省内存（每个空闲 Claude 进程约 140 MB）。进程关掉后，nxbridge 搭档再发来的消息只能排队，等你在那个线程再发一句话才会送到，搭档就叫不醒它了。这个脚本把常量改回 30 分钟，代价是空闲进程多留 28 分钟内存。更早的版本本来就是 30 分钟，`status` 会直接显示 `patched`。归档、删除或把线程标为已完成（settle）时，T3 仍会立刻结束它的进程，不受这个时长影响。
 
-```sh
-(set -o pipefail; curl -fsSL https://raw.githubusercontent.com/MiCat-S/t3-prompt-patch/main/t3-telemetry-off.py | python3 - apply)
-```
+## 关闭使用统计
 
-已经下载脚本的话，在脚本所在目录运行：
-
-```sh
-python3 t3-telemetry-off.py status
-python3 t3-telemetry-off.py apply
-```
+脚本 `t3-telemetry-off.py`，不改提示词，也不需要 nxbridge。
 
 它让 T3 Code 本机服务端停止记录和发送产品使用统计，并跳过两处只给遥测用的标识读取（本机匿名 ID 和关联的 T3 Connect 账号）。Tailscale 直连继续走原有配对路径。浏览器或手机 App 自己发送的诊断，以及发往 Axiom 的连接诊断，仍由各自的设置或网络规则控制。在 macOS Nightly `0.1.12-nightly.20261124.5178` 上实测过；`0.1.12-nightly.20261124.5209` 上确认两处补丁都能打上，代码在标识为空时跳过记录和发送，没有重新实测网络请求。
-
-和提示词补丁一样，T3 更新后要重新运行 `apply` 并重启 T3。两个脚本共用同一份原包备份（`~/.t3-prompt-patch/backup/<版本>/`），由先打补丁的那个脚本保存。任何一个脚本的 `restore` 都会恢复原包，两边的改动一起撤销；之后想保留哪边，就重新运行那个脚本的 `apply`。
 
 以前用 `t3-prompt-patch.py apply --disable-product-telemetry` 的，现在这个参数会报错并提示改用新脚本，什么都不写入。
 
@@ -138,8 +148,9 @@ T3 Code 0.1.11-nightly.20261118.4864：提示词原文和 4825 逐字相同；�
 
 | 文件 | 说明 |
 |---|---|
-| `t3-prompt-patch.py` | 提示词补丁脚本（含补丁 7），补丁内容在文件开头的 `PATCHES` 里 |
-| `t3-telemetry-off.py` | 关闭使用统计的独立脚本，补丁内容同样在文件开头的 `PATCHES` 里 |
+| `t3-prompt-patch.py` | 提示词补丁脚本，补丁内容在文件开头的 `PATCHES` 里 |
+| `t3-idle-30min.py` | 空闲会话改回 30 分钟的独立脚本 |
+| `t3-telemetry-off.py` | 关闭使用统计的独立脚本 |
 | `docs/prompts-original-vs-patched.zh.md` | T3 提示词原版与现版对照，附中文转述 |
 | `LICENSE` | MIT 许可证 |
 

@@ -8,13 +8,13 @@ Usage:
 
 Changes take effect after T3 Code is fully quit and reopened.
 After a T3 Code update the patch is gone: run `apply` again.
-Independent of t3-prompt-patch.py; the two can be applied in either order.
+Independent of the other scripts in this repository; apply them in any order.
 """
 import hashlib, json, os, plistlib, shutil, struct, sys, tempfile
 
 APP = "/Applications/T3 Code (Nightly).app"
-# Shared with t3-prompt-patch.py: whichever script patches a T3 version first backs up the
-# untouched package, so `restore` from either script returns the original.
+# Shared with the other scripts in this repository: whichever one patches a T3 version first
+# backs up the untouched package, so `restore` from any of them returns the original.
 HOME = os.path.expanduser("~/.t3-prompt-patch")
 # "find" lists every known original form, newest first.
 PATCHES = [
@@ -190,7 +190,7 @@ def cmd_restore(asar):
         sys.exit(f"No backup for T3 Code {version()} at {bp}.")
     shutil.copy2(bp, asar + ".restore")
     os.replace(asar + ".restore", asar)
-    print("Restored original app.asar (this also removes t3-prompt-patch.py changes). Quit and reopen T3 Code.")
+    print("Restored original app.asar (this also removes the other scripts' changes). Quit and reopen T3 Code.")
 
 
 if __name__ == "__main__":
